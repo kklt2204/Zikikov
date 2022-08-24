@@ -112,40 +112,45 @@ class ORDER_File:
             self.path = filepath
             self.filename = os.path.basename(filepath)
             self.filesize = os.path.getsize(filepath)
-
-            with open(self.path, 'r', encoding = 'ISO-8859-1', errors = 'ignore') as f:
-                order_data_line = ''
-                for line in f.readlines():
-                    if re.search('<orderData ', line):
-                        order_data_line = line
-                        break
-            if not order_data_line:
-                self._parseContent(order_data_line)
-                self._getOptions()
-                del order_data_line
-            else:
-                raise ValueError('No <orderData> found : {}'.format(filepath))
+            self.parse_file_name()
         else:
-
             raise OSError('File does not exist: {}'.format(filepath))
 
+    def parse_file_name(self):
+        if vin7_comp := re.search('\S{7}](?=\.)', self.filename):
+            self.short_vin = vin7_comp.group()
+        else:
+            self.short_vin = ''
+
     def _parseContent(self, order_data_line: str):
+
         DISIRED_KEYS = ['longVIN', 'shortVIN', 'orderId', 'fzs', 'integrationLevel', 'fabricCode', 'colourCode',
                         'timeCriteria', 'typeKey', 'series', 'vehicleType', 'bodyLayout', 'countryVariant',
                         'engineSeries', 'engineDerivative', 'motorSport', 'exhaustType', 'gearboxType', 'bodyType',
                         'driveType', 'driveConfiguration', 'numberOfDoors', 'engineSize', 'hybridType',
                         'driveUnitNumber', 'firstCreationDate', 'latestCreationDate']
+
+        with open(self.path, 'r', encoding = 'ISO-8859-1', errors = 'ignore') as f:
+            order_data_line = ''
+            full_content = f.read()
+            for line in f.readlines():
+                if re.search('<orderData ', line):
+                    order_data_line = line
+                    break
+        if not order_data_line:
+            self._parseContent(order_data_line)
+            self._getOptions(full_content)
+            del order_data_line
+        else:
+            raise ValueError('No <orderData> found : {}'.format(self.path))
+
         self.data_dictionary = dict(
-                [item for item in re.findall('(\S+)="(.+?)"', self.first_line) if item[0] in DISIRED_KEYS]
+                [item for item in re.findall('(\S+)="(.+?)"',order_data_line) if item[0] in DISIRED_KEYS]
         )
         if self.data_dictionary == {}:
             lg.warning('No Data Read :{}'.format(self.filename))
 
-    def _getOptions(self):
-        self.option_code_list = re.findall('<saCode>(\w{3})</saCode>', self.first_line)
+    def _getOptions(self, content):
+        self.option_code_list = re.findall('<saCode>(\w{3})</saCode>', content)
 
 
-if __name__ == '__main__':
-    a = ORDER_File(
-            r"C:\00_MyFolder\02_Programming\02_Projects\checkinfile\test_resource\oder_file\AM456768.xml"
-    )
